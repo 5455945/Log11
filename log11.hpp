@@ -1,8 +1,9 @@
 #ifndef __LOG11HPP__
 #define __LOG11HPP__
 
-
+#ifndef _MSC_VER
 #include <unistd.h>
+#endif
 #include <iostream>
 #include <algorithm>
 #include <thread>
@@ -17,6 +18,7 @@
 #include <deque>
 #include <array>
 
+#pragma warning(disable: 4996) // localtime
 
 class Log11
 {
@@ -358,13 +360,17 @@ private:
     void writeDate(std::string& str)
     {
         time_t t;
-        char buff[256];
+        char buff[256] = {0};
 
         if(fmt_date_len > 0)
         {
             time(&t);
 
+#ifdef _MSC_VER
+            if (strftime(buff, 256, fmt_date.c_str(), localtime(&t)) != 0)
+#else
             if (std::strftime(buff, 256, fmt_date.c_str(), std::localtime(&t)) != 0)
+#endif
             {
                 str += std::string{buff} + " - ";
             }
@@ -392,5 +398,35 @@ private:
     std::stringstream *current_stream;
     std::mutex _internal_mutex;
 };
+
+struct FileLog
+{
+    FileLog(const std::string &filename)
+    {
+        logout = std::make_shared<std::ofstream>(filename, std::ofstream::app);
+        log.setLogCall([this](const std::string& s) {
+            std::unique_lock<std::mutex> g{ m };
+            *logout << s << std::endl;
+        });
+    }
+
+    ~FileLog()
+    {
+        log.close();
+        logout->flush();
+        logout->close();
+    }
+
+    std::mutex m;
+    std::shared_ptr<std::ofstream> logout;
+    Log11 log;
+};
+
+extern FileLog* g_log;
+
+//#define LOG_INFO(...)  if(g_log){g_log->log.info(__FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__);}
+//#define LOG_ERROR(...) if(g_log){g_log->log.error(__FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__);}
+#define LOG_INFO(...)  if(g_log){g_log->log.info( ##__VA_ARGS__);}
+#define LOG_ERROR(...) if(g_log){g_log->log.error(##__VA_ARGS__);}
 
 #endif

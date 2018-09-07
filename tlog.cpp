@@ -4,37 +4,14 @@
 #include <functional>
 #include <future>
 #include <fstream>
-
+#include <chrono>
+#include <ctime>
+#include <iomanip>
 #include "log11.hpp"
-
-
-struct FileLog
-{
-    FileLog()
-    {
-        myout = std::make_shared<std::ofstream>("mylog.txt", std::ofstream::out);
-
-        log.setLogCall([this](const std::string& s){
-            std::unique_lock<std::mutex> g{m};
-            *myout << s << std::endl;
-        });
-    }
-
-    ~FileLog()
-    {
-        log.close();
-        myout->flush();
-        myout->close();
-    }
-
-    std::mutex m;
-    std::shared_ptr<std::ofstream> myout;
-    Log11 log;
-};
 
 void test1()
 {
-    FileLog flog;
+    FileLog flog("test.log");
     
     std::thread th_a([&](){
         for (unsigned int i = 0; i < 10000; i++)
@@ -95,10 +72,50 @@ void test2(Log11 log)
     std::cout << "DONE" << std::endl;
 }
 
+#ifdef WIN32
+#include <Shlobj.h>
+#pragma comment( lib, "shell32.lib")
+void GetLocalAppDataPathA(std::string &path)
+{
+    char lpszDefaultDir[MAX_PATH];
+    char szDocument[MAX_PATH] = { 0 };
+    memset(lpszDefaultDir, 0, _MAX_PATH);
 
-int main()
+    LPITEMIDLIST pidl = NULL;
+    SHGetSpecialFolderLocation(NULL, CSIDL_APPDATA, &pidl);
+    if (pidl && SHGetPathFromIDListA(pidl, szDocument))
+    {
+        GetShortPathNameA(szDocument, lpszDefaultDir, _MAX_PATH);
+    }
+
+    path = lpszDefaultDir;
+}
+#endif
+
+void test03()
+{
+    std::string log_flag = "/log_";
+    std::string app_path = "";
+#ifdef WIN32
+    GetLocalAppDataPathA(app_path);
+#endif
+    std::string logfile = app_path + log_flag;
+    auto t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    std::stringstream ss;
+    ss << std::put_time(std::localtime(&t), "%Y%m");
+    logfile += ss.str();
+    logfile += ".log";
+    g_log = new FileLog(logfile);
+    LOG_INFO("创建日志文件:", logfile);
+}
+
+FileLog *g_log = nullptr;
+
+int main(int argc, char** argv)
 {
     test1();
     //test2(std::move(Log11()));
+    test03();
+
     return 0;
 }
