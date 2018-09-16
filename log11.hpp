@@ -1,9 +1,6 @@
 #ifndef __LOG11HPP__
 #define __LOG11HPP__
 
-#ifndef _MSC_VER
-#include <unistd.h>
-#endif
 #include <iostream>
 #include <algorithm>
 #include <thread>
@@ -17,6 +14,13 @@
 #include <chrono>
 #include <deque>
 #include <array>
+#ifdef _MSC_VER
+#include <Windows.h>
+#else
+#include <unistd.h>
+#include <sys/time.h>
+#endif
+
 
 #pragma warning(disable: 4996) // localtime
 
@@ -365,12 +369,24 @@ private:
         if(fmt_date_len > 0)
         {
             time(&t);
-
 #ifdef _MSC_VER
-            if (strftime(buff, 256, fmt_date.c_str(), localtime(&t)) != 0)
+            SYSTEMTIME t;
+            GetLocalTime(&t);
+            sprintf(buff, "%04d-%02d-%02d %02d:%02d:%02d.%03d", t.wYear + 1900, t.wMonth + 1, t.wDay, t.wHour, t.wMinute, t.wSecond, t.wMilliseconds);
+            str += std::string{ buff } +" - ";
 #else
-            if (std::strftime(buff, 256, fmt_date.c_str(), std::localtime(&t)) != 0)
+            struct timeval    tv;
+            struct timezone   tz;
+            struct tm         *p;
+            gettimeofday(&tv, &tz);
+            p = localtime(&tv.tv_sec);
+            sprintf(buff, "%04d-%02d-%02d %02d:%02d:%02d.%03ld\n", 1900 + p->tm_year, 1 + p->tm_mon, p->tm_mday, p->tm_hour, p->tm_min, p->tm_sec, tv.tv_usec/1000);
 #endif
+//#ifdef _MSC_VER
+//            if (strftime(buff, 256, fmt_date.c_str(), localtime(&t)) != 0)
+//#else
+//            if (std::strftime(buff, 256, fmt_date.c_str(), std::localtime(&t)) != 0)
+//#endif
             {
                 str += std::string{buff} + " - ";
             }
